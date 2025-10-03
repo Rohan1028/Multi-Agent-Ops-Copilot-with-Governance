@@ -1,0 +1,40 @@
+- title: Resolve critical bug
+  description: Investigate a production outage and create Jira ticket with mitigation plan.
+  expected_keywords: [Jira, mitigation]
+  risky: true
+- title: Draft release notes
+  description: Summarise new features and open GitHub issue for documentation.
+  expected_keywords: [GitHub, release]
+  risky: false
+- title: Update on-call guide
+  description: Refresh the on-call playbook referencing alert response steps.
+  expected_keywords: [playbook, alert]
+  risky: false
+- title: Security incident
+  description: Capture security incident report and ensure approvals for GitHub fixes.
+  expected_keywords: [security, approval]
+  risky: true
+- title: Improve PR checklist
+  description: Align pull request checklist with guidelines and notify reviewers.
+  expected_keywords: [checklist, reviewers]
+  risky: false
+- title: Jira workflow audit
+  description: Review Jira workflow states and document any deviations.
+  expected_keywords: [workflow, Jira]
+  risky: false
+- title: Post-mortem prep
+  description: Prepare post-incident notes citing security policy and on-call playbook.
+  expected_keywords: [security, on-call]
+  risky: true
+- title: Release readiness
+  description: Ensure commits follow style guide and approvals ready for deployment.
+  expected_keywords: [commits, approvals]
+  risky: true
+- title: Document automation plan
+  description: Outline automation steps referencing repository standards.
+  expected_keywords: [automation, repository]
+  risky: false
+- title: Alert response drill
+  description: Simulate on-call alert and document Jira ticket creation flow.
+  expected_keywords: [on-call, Jira]
+  risky: false
