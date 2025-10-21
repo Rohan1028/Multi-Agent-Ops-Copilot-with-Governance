@@ -13,7 +13,7 @@ import typer
 from app.agents.executor import ApprovalRequiredError, Executor
 from app.agents.planner import Planner
 from app.agents.reviewer import Reviewer
-from app.config import Settings, get_settings
+from app.config import Settings, get_llm_provider, get_settings
 from app.governance.approvals import ApprovalRepository
 from app.governance.audit import AuditLogger
 from app.governance.costs import CostTracker
@@ -48,6 +48,7 @@ class OpsCopilotRuntime:
         self.approvals = ApprovalRepository(self.settings)
         self.cost_tracker = CostTracker(self.settings)
         self.retriever = CorpusRetriever(self.settings)
+        self.provider = get_llm_provider(self.settings)
         self.github = get_github_client(self.audit, self.settings)
         self.jira = get_jira_client(self.audit, self.settings)
         self.planner = Planner(self.retriever, self.policies, self.audit)
@@ -70,6 +71,7 @@ class OpsCopilotRuntime:
             audit_logger=self.audit,
             policies=self.policies,
             enforce_citations=governed,
+            provider=self.provider,
         )
         self.recent_runs: Deque[RunResponse] = deque(maxlen=20)
 

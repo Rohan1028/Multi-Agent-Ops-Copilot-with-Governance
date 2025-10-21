@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from app.agents.base import Agent
 from app.governance.approvals import ApprovalRepository
@@ -13,6 +13,7 @@ from app.schemas.core import ExecutionResult, PlanStep, Task
 from app.telemetry import span
 from app.tools.github_client import GitHubClientProtocol
 from app.tools.jira_client import JiraClientProtocol
+from providers.base import BaseProvider
 
 
 class ApprovalRequiredError(RuntimeError):
@@ -35,6 +36,7 @@ class Executor(Agent):
         policies: PolicyStore,
         *,
         enforce_citations: bool = True,
+        provider: Optional[BaseProvider] = None,
     ) -> None:
         super().__init__("Executor", audit_logger)
         self.retriever = retriever
@@ -44,6 +46,7 @@ class Executor(Agent):
         self.costs = costs
         self.policies = policies
         self.enforce_citations = enforce_citations
+        self.provider = provider
 
     def act(self, task: Task, step: PlanStep) -> ExecutionResult:
         self.audit.log(self.name, "step_received", {"task_id": task.id, "step_id": step.id, "tool": step.tool})
@@ -111,7 +114,29 @@ class Executor(Agent):
 
     def _execute_internal(self, task: Task, step: PlanStep, retrieved: List[tuple[str, str]]) -> str:
         synopsis = f"Task '{task.title}' prioritised with risk level {task.risk_level}. {step.instruction}"
-        return synopsis
+        if not self.provider:
+            return synopsis
+
+        sources = "\n".join(f"- {src}" for _, src in retrieved[:3])
+        prompt = (
+            f"Generate a short, actionable update for an operations task.\n"
+            f"Task title: {task.title}\n"
+            f"Task description: {task.description}\n"
+            f"Desired outcome: {task.desired_outcome}\n"
+            f"Planner instruction: {step.instruction}\n"
+            f"Reference the provided sources when relevant:\n{sources}\n"
+            "Respond with a concise summary using complete sentences."
+        )
+        system_prompt = (
+            "You are the execution agent for an operations copilot. "
+            "Stay factual, avoid inventing details, and prefer bullet style summaries when appropriate."
+        )
+        try:
+            generated = self.provider.generate(prompt, system=system_prompt, max_tokens=320)
+            return generated or synopsis
+        except Exception as exc:  # pragma: no cover - provider failures fall back
+            self.audit.log(self.name, "provider_error", {"step_id": step.id, "error": str(exc)})
+            return synopsis
 
     def _enforce_policy(self, step: PlanStep) -> None:
         if step.tool == "none":

@@ -1,4 +1,4 @@
-Ops Copilot application package.
+"""Ops Copilot application package."""
 
 from .config import get_settings
 
