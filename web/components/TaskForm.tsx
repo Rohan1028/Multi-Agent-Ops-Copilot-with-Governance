@@ -80,7 +80,7 @@ export default function TaskForm({ onSubmit, loading }: Props) {
         className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
         disabled={loading}
       >
-        {loading ? 'Running…' : 'Run Task'}
+        {loading ? 'Running...' : 'Run Task'}
       </button>
     </form>
   );

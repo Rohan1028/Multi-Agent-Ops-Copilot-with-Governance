@@ -1,3 +1,5 @@
+'use client';
+
 import ApprovalQueue from '@/components/ApprovalQueue';
 import MetricsCard from '@/components/MetricsCard';
 import RunsTable from '@/components/RunsTable';
