@@ -49,7 +49,7 @@ class AuditLogger:
             conn.commit()
 
     def log(self, agent: str, action: str, payload: Dict[str, Any]) -> None:
-        safe_payload = json.dumps(_mask_payload(payload))
+        safe_payload = json.dumps(_mask_payload(payload), default=str)
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO audit_logs(ts, agent, action, payload_json) VALUES (?, ?, ?, ?)",

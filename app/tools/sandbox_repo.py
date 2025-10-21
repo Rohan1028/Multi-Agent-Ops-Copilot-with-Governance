@@ -6,8 +6,7 @@ from typing import Dict
 
 DEFAULT_FILES = {
     'README.md': '# Sandbox Repository\n\nThis repository is managed by the Ops Copilot sandbox.',
-    'src/app.py': 'print("hello from sandbox")
-',
+    'src/app.py': 'print("hello from sandbox")\n',
 }
 
 

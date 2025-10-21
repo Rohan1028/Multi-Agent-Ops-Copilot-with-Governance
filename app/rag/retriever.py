@@ -55,5 +55,4 @@ def require_citations(text: str, retrieved: Sequence[RetrieverResult]) -> str:
     citation_tags = ' '.join(f"[source:{source}]" for source in cited)
     if citation_tags in text:
         return text
-    return f"{text}
-{citation_tags}"
+    return f"{text}\n{citation_tags}"

@@ -5,7 +5,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNTIME_DIR = BASE_DIR / 'runtime'

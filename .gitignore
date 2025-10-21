@@ -9,6 +9,7 @@ dist/
 reports/
 app/data/*.pkl
 sandbox_repo/
+runtime/
 node_modules/
 web/.next/
 web/out/
