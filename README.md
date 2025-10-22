@@ -106,3 +106,20 @@ Tokens are masked in audit logs. Least-privilege scopes are recommended (`repo:s
 - Update tests alongside new behaviours.
 
 Enjoy building with the Ops Copilot!
+
+## Live Telemetry Dashboard (Grafana)
+
+To visualise real-time governance stats:
+1. Run the API (make run).
+2. In Grafana, add a data source using the JSON API plugin (or SimpleJson) pointing at http://localhost:8000/metrics.
+3. Use /metrics/llm/timeseries for time-series panels (cost, latency, tokens) and /metrics/governance/summary for approval/reviewer stats.
+4. Example panel queries:
+   - GET /metrics/llm/timeseries ? transform points[*].created_at into the x-axis, points[*].cost_usd or points[*].total_tokens as series.
+   - GET /metrics/governance/summary ? pie bar for approvals using pprovals.pending, pprovals.approved, pprovals.rejected.
+5. Optionally schedule python scripts/export_metrics.py if you also want static CSV/JSON snapshots.
+
+Suggested dashboards include:
+- LLM Spend & Latency: dual-axis chart of cost_usd vs latency_ms.
+- Approval Queue Health: bar for pending/approved/rejected.
+- Reviewer Outcomes: stacked chart using counts from audit actions (llm_reject, eview_passed, etc.).
+

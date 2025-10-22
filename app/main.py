@@ -19,6 +19,7 @@ from app.governance.audit import AuditLogger
 from app.governance.costs import CostTracker
 from app.governance.policies import PolicyStore
 from app.metrics.llm_usage import LLMUsageLogger
+from app.metrics.api import router as metrics_router
 from app.llm_rate_limit import RateLimiter
 from app.rag.indexer import CorpusIndexer
 from app.rag.retriever import CorpusRetriever
@@ -186,6 +187,8 @@ fastapi_app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+fastapi_app.include_router(metrics_router)
 
 
 @fastapi_app.get('/healthz')
