@@ -7,6 +7,7 @@ from app.governance.approvals import ApprovalRepository
 from app.governance.audit import AuditLogger
 from app.governance.costs import BudgetExceededError, CostTracker
 from app.governance.policies import PolicyStore
+from app.llm import call_llm
 from app.rag.defenses import sanitize
 from app.rag.retriever import CorpusRetriever, require_citations
 from app.schemas.core import ExecutionResult, PlanStep, Task
@@ -117,9 +118,17 @@ class Executor(Agent):
         if not self.provider:
             return synopsis
 
-        sources = "\n".join(f"- {src}" for _, src in retrieved[:3])
+        if retrieved:
+            formatted = []
+            for text, src in retrieved[:3]:
+                snippet = (text or "").replace("\n", " ")[:200]
+                formatted.append(f"- {src}: {snippet}")
+            sources = "\n".join(formatted)
+        else:
+            sources = "No supporting corpus entries."
         prompt = (
-            f"Generate a short, actionable update for an operations task.\n"
+            "[LLM_EXECUTOR_REQUEST]\n"
+            "Generate a short, actionable update for an operations task.\n"
             f"Task title: {task.title}\n"
             f"Task description: {task.description}\n"
             f"Desired outcome: {task.desired_outcome}\n"
@@ -132,7 +141,12 @@ class Executor(Agent):
             "Stay factual, avoid inventing details, and prefer bullet style summaries when appropriate."
         )
         try:
-            generated = self.provider.generate(prompt, system=system_prompt, max_tokens=320)
+            generated = call_llm(
+                self.provider,
+                system=system_prompt,
+                prompt=prompt,
+                max_tokens=320,
+            )
             return generated or synopsis
         except Exception as exc:  # pragma: no cover - provider failures fall back
             self.audit.log(self.name, "provider_error", {"step_id": step.id, "error": str(exc)})

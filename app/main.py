@@ -61,6 +61,7 @@ class OpsCopilotRuntime:
             enforce_citations=review_cfg.get('enforce_citations', True) if governed else False,
             reject_on_injection=review_cfg.get('reject_on_injection', True) if governed else False,
             max_replans=review_cfg.get('max_replans', 2),
+            provider=self.provider,
         )
         self.executor = Executor(
             retriever=self.retriever,

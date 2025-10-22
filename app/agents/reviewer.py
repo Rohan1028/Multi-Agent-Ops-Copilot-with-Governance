@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 from app.agents.base import Agent
 from app.governance.policies import PolicyStore
+from app.llm import call_llm
 from app.rag.defenses import detect_prompt_injection, sanitize
 from app.rag.retriever import CorpusRetriever
 from app.schemas.core import ExecutionResult, PlanStep, Task
+from providers.base import BaseProvider
 
 
 class Reviewer(Agent):
@@ -23,6 +25,7 @@ class Reviewer(Agent):
         enforce_citations: bool | None = None,
         reject_on_injection: bool | None = None,
         max_replans: int | None = None,
+        provider: Optional[BaseProvider] = None,
     ) -> None:
         super().__init__("Reviewer", audit_logger)
         self.policies = policies
@@ -39,6 +42,7 @@ class Reviewer(Agent):
         self.reject_on_injection = review_cfg.get('reject_on_injection', True)
         self.max_replans = review_cfg.get('max_replans', 2)
         self._replan_counts: Dict[str, int] = defaultdict(int)
+        self.provider = provider
 
     def act(self, task: Task, step: PlanStep, result: ExecutionResult) -> Tuple[bool, str]:
         if not self.enabled:
@@ -67,5 +71,35 @@ class Reviewer(Agent):
         if cleaned_output != result.output:
             result.output = cleaned_output
 
+        if self.provider:
+            critique = call_llm(
+                self.provider,
+                system="You enforce governance policy compliance for an operations copilot.",
+                prompt=self._build_review_prompt(task, step, result),
+                max_tokens=220,
+            )
+            verdict = critique.strip().lower()
+            if any(token in verdict for token in ["reject", "block", "violation"]):
+                reason = critique.strip() or "Reviewer rejected output via LLM judgement"
+                result.success = False
+                result.errors.append(reason)
+                self.audit.log(self.name, "llm_reject", {"step_id": step.id, "critique": critique})
+                return False, reason
+            self.audit.log(self.name, "llm_approve", {"step_id": step.id, "critique": critique})
+
         self.audit.log(self.name, "review_passed", {"step_id": step.id})
         return True, "Approved"
+
+    def _build_review_prompt(self, task: Task, step: PlanStep, result: ExecutionResult) -> str:
+        citations = ", ".join(result.citations) or "none"
+        errors = "; ".join(result.errors) or "none reported"
+        return (
+            "[LLM_REVIEW_REQUEST]\n"
+            "Assess whether the execution result is compliant with policy. "
+            "Reply with APPROVED or REJECT and include a short justification.\n"
+            f"Task: {task.title} (risk={task.risk_level})\n"
+            f"Plan step tool={step.tool} instruction={step.instruction}\n"
+            f"Output: {result.output}\n"
+            f"Citations: {citations}\n"
+            f"Errors: {errors}\n"
+        )
