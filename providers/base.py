@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+import json
 from typing import Protocol
 
 from app.config import Settings, get_settings
@@ -22,6 +23,37 @@ class StubProvider:
     settings: Settings
 
     def generate(self, prompt: str, system: str | None = None, max_tokens: int = 512) -> str:
+        if "[LLM_PLAN_REQUEST]" in prompt:
+            plan = {
+                "steps": [
+                    {
+                        "tool": "none",
+                        "instruction": "Synthesize the knowledge base into a situational overview.",
+                        "needs_approval": False,
+                    },
+                    {
+                        "tool": "github",
+                        "instruction": "Document work items and reviewers in GitHub referencing cited sources.",
+                        "needs_approval": True,
+                    },
+                    {
+                        "tool": "jira",
+                        "instruction": "Update the Jira ticket with acceptance criteria and risk notes.",
+                        "needs_approval": True,
+                    },
+                ]
+            }
+            return json.dumps(plan)
+        if "[LLM_EXECUTOR_REQUEST]" in prompt:
+            return (
+                "Action Summary:\n"
+                "- Applied governance safe-guards.\n"
+                "- Produced deliverable referencing cited sources.\n"
+                "CITATIONS: ensure output embeds [source:...] tags."
+            )
+        if "[LLM_REVIEW_REQUEST]" in prompt:
+            return "APPROVED: Output aligns with policy, citations present, no risk detected."
+
         seed = hash((prompt, system)) & 0xFFFF
         pseudo = (seed % 997) / 997
         return f"[stub-response::{pseudo:.3f}] {prompt[: max_tokens // 2]}"
