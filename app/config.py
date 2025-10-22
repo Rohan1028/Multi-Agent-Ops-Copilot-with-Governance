@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     SANDBOX_REPO_PATH: Path = Field(default=BASE_DIR / 'sandbox_repo')
     LOG_LEVEL: str = Field(default='INFO')
     LLM_PROVIDER: str = Field(default='stub')
+    OPENAI_API_KEY: str | None = Field(default=None)
+    OPENAI_MODEL: str | None = Field(default='gpt-4o-mini')
+    OPENAI_API_BASE: str | None = Field(default=None)
+    RUN_BUDGET_USD: float | None = Field(default=None)
 
     class Config:
         env_file = '.env'

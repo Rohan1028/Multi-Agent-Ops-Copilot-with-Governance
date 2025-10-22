@@ -8,6 +8,7 @@ from app.governance.audit import AuditLogger
 from app.governance.costs import BudgetExceededError, CostTracker
 from app.governance.policies import PolicyStore
 from app.llm import call_llm
+from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.defenses import sanitize
 from app.rag.retriever import CorpusRetriever, require_citations
 from app.schemas.core import ExecutionResult, PlanStep, Task
@@ -38,6 +39,7 @@ class Executor(Agent):
         *,
         enforce_citations: bool = True,
         provider: Optional[BaseProvider] = None,
+        usage_logger: Optional[LLMUsageLogger] = None,
     ) -> None:
         super().__init__("Executor", audit_logger)
         self.retriever = retriever
@@ -48,6 +50,7 @@ class Executor(Agent):
         self.policies = policies
         self.enforce_citations = enforce_citations
         self.provider = provider
+        self.usage_logger = usage_logger
 
     def act(self, task: Task, step: PlanStep) -> ExecutionResult:
         self.audit.log(self.name, "step_received", {"task_id": task.id, "step_id": step.id, "tool": step.tool})
@@ -146,6 +149,7 @@ class Executor(Agent):
                 system=system_prompt,
                 prompt=prompt,
                 max_tokens=320,
+                usage_logger=self.usage_logger,
             )
             return generated or synopsis
         except Exception as exc:  # pragma: no cover - provider failures fall back

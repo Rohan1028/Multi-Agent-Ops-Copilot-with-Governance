@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
-from typing import Protocol
+from typing import Dict, Optional, Protocol
 
 from app.config import Settings, get_settings
 
@@ -21,8 +21,12 @@ class ProviderFactoryError(RuntimeError):
 @dataclass
 class StubProvider:
     settings: Settings
+    model: str = "stub-001"
+    provider_name: str = "stub"
+    _last_usage: Optional[Dict[str, int]] = field(default=None, init=False, repr=False)
 
     def generate(self, prompt: str, system: str | None = None, max_tokens: int = 512) -> str:
+        text: str
         if "[LLM_PLAN_REQUEST]" in prompt:
             plan = {
                 "steps": [
@@ -43,23 +47,37 @@ class StubProvider:
                     },
                 ]
             }
-            return json.dumps(plan)
-        if "[LLM_EXECUTOR_REQUEST]" in prompt:
-            return (
+            text = json.dumps(plan)
+        elif "[LLM_EXECUTOR_REQUEST]" in prompt:
+            text = (
                 "Action Summary:\n"
                 "- Applied governance safe-guards.\n"
                 "- Produced deliverable referencing cited sources.\n"
                 "CITATIONS: ensure output embeds [source:...] tags."
             )
-        if "[LLM_REVIEW_REQUEST]" in prompt:
-            return "APPROVED: Output aligns with policy, citations present, no risk detected."
+        elif "[LLM_REVIEW_REQUEST]" in prompt:
+            text = "APPROVED: Output aligns with policy, citations present, no risk detected."
+        else:
+            seed = hash((prompt, system)) & 0xFFFF
+            pseudo = (seed % 997) / 997
+            text = f"[stub-response::{pseudo:.3f}] {prompt[: max_tokens // 2]}"
 
-        seed = hash((prompt, system)) & 0xFFFF
-        pseudo = (seed % 997) / 997
-        return f"[stub-response::{pseudo:.3f}] {prompt[: max_tokens // 2]}"
+        prompt_tokens = max(1, len((prompt or "").split()))
+        completion_tokens = max(1, len(text.split()))
+        self._last_usage = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        }
+        return text
 
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         return (input_tokens + output_tokens) / 100000
+
+    def pop_last_usage(self) -> Optional[Dict[str, int]]:
+        usage = self._last_usage
+        self._last_usage = None
+        return usage
 
 
 _DEFECTIVE = {

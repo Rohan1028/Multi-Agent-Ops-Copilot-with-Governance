@@ -18,6 +18,7 @@ from app.governance.approvals import ApprovalRepository
 from app.governance.audit import AuditLogger
 from app.governance.costs import CostTracker
 from app.governance.policies import PolicyStore
+from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.indexer import CorpusIndexer
 from app.rag.retriever import CorpusRetriever
 from app.schemas.core import ExecutionResult, PlanStep, RunMetrics, Task
@@ -48,10 +49,17 @@ class OpsCopilotRuntime:
         self.approvals = ApprovalRepository(self.settings)
         self.cost_tracker = CostTracker(self.settings)
         self.retriever = CorpusRetriever(self.settings)
+        self.llm_usage = LLMUsageLogger(self.settings)
         self.provider = get_llm_provider(self.settings)
         self.github = get_github_client(self.audit, self.settings)
         self.jira = get_jira_client(self.audit, self.settings)
-        self.planner = Planner(self.retriever, self.policies, self.audit, provider=self.provider)
+        self.planner = Planner(
+            self.retriever,
+            self.policies,
+            self.audit,
+            provider=self.provider,
+            usage_logger=self.llm_usage,
+        )
         review_cfg = self.policies.review_config
         self.reviewer = Reviewer(
             policies=self.policies,
@@ -62,6 +70,7 @@ class OpsCopilotRuntime:
             reject_on_injection=review_cfg.get('reject_on_injection', True) if governed else False,
             max_replans=review_cfg.get('max_replans', 2),
             provider=self.provider,
+            usage_logger=self.llm_usage,
         )
         self.executor = Executor(
             retriever=self.retriever,
@@ -73,6 +82,7 @@ class OpsCopilotRuntime:
             policies=self.policies,
             enforce_citations=governed,
             provider=self.provider,
+            usage_logger=self.llm_usage,
         )
         self.recent_runs: Deque[RunResponse] = deque(maxlen=20)
 
@@ -146,6 +156,14 @@ class OpsCopilotRuntime:
         corpus_dir = Path(__file__).resolve().parent / 'data' / 'corpus'
         CorpusIndexer(corpus_dir=corpus_dir, index_path=self.settings.RAG_INDEX_PATH).build()
 
+    def llm_usage_summary(self) -> Dict[str, float]:
+        return self.llm_usage.summary()
+
+    def llm_usage_recent(self, limit: int = 20) -> List[Dict[str, object]]:
+        from dataclasses import asdict
+
+        return [asdict(record) for record in self.llm_usage.recent(limit)]
+
 
 runtime = OpsCopilotRuntime()
 
@@ -185,6 +203,16 @@ def approvals_pending():
 @fastapi_app.get('/runs/latest')
 def latest_runs():
     return [run.model_dump() for run in runtime.recent_runs]
+
+
+@fastapi_app.get('/metrics/llm/summary')
+def llm_usage_summary():
+    return runtime.llm_usage_summary()
+
+
+@fastapi_app.get('/metrics/llm/recent')
+def llm_usage_recent(limit: int = 20):
+    return runtime.llm_usage_recent(limit)
 
 
 cli = typer.Typer(help='Ops Copilot CLI')

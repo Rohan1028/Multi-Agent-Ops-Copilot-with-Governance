@@ -6,6 +6,7 @@ from typing import Dict, Optional, Tuple
 from app.agents.base import Agent
 from app.governance.policies import PolicyStore
 from app.llm import call_llm
+from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.defenses import detect_prompt_injection, sanitize
 from app.rag.retriever import CorpusRetriever
 from app.schemas.core import ExecutionResult, PlanStep, Task
@@ -26,6 +27,7 @@ class Reviewer(Agent):
         reject_on_injection: bool | None = None,
         max_replans: int | None = None,
         provider: Optional[BaseProvider] = None,
+        usage_logger: Optional[LLMUsageLogger] = None,
     ) -> None:
         super().__init__("Reviewer", audit_logger)
         self.policies = policies
@@ -43,6 +45,7 @@ class Reviewer(Agent):
         self.max_replans = review_cfg.get('max_replans', 2)
         self._replan_counts: Dict[str, int] = defaultdict(int)
         self.provider = provider
+        self.usage_logger = usage_logger
 
     def act(self, task: Task, step: PlanStep, result: ExecutionResult) -> Tuple[bool, str]:
         if not self.enabled:
@@ -77,6 +80,7 @@ class Reviewer(Agent):
                 system="You enforce governance policy compliance for an operations copilot.",
                 prompt=self._build_review_prompt(task, step, result),
                 max_tokens=220,
+                usage_logger=self.usage_logger,
             )
             verdict = critique.strip().lower()
             if any(token in verdict for token in ["reject", "block", "violation"]):
