@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str | None = Field(default='gpt-4o-mini')
     OPENAI_API_BASE: str | None = Field(default=None)
     RUN_BUDGET_USD: float | None = Field(default=None)
+    LLM_RATE_LIMIT_PER_MIN: int = Field(default=60)
 
     class Config:
         env_file = '.env'

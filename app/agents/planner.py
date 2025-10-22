@@ -7,6 +7,7 @@ from typing import List, Optional, Sequence
 from app.agents.base import Agent
 from app.governance.policies import PolicyStore
 from app.llm import call_llm, load_json_safely
+from app.llm_rate_limit import RateLimiter
 from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.retriever import CorpusRetriever
 from app.schemas.core import PlanStep, Task
@@ -26,6 +27,7 @@ class Planner(Agent):
         max_steps: int = 5,
         provider: Optional[BaseProvider] = None,
         usage_logger: Optional[LLMUsageLogger] = None,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         super().__init__("Planner", audit_logger)
         self.retriever = retriever
@@ -33,6 +35,7 @@ class Planner(Agent):
         self.max_steps = max_steps
         self.provider = provider
         self.usage_logger = usage_logger
+        self.rate_limiter = rate_limiter
 
     def act(self, task: Task) -> List[PlanStep]:
         seed = hash(task.id) & 0xFFFF
@@ -87,6 +90,8 @@ class Planner(Agent):
             prompt=prompt,
             max_tokens=400,
             usage_logger=self.usage_logger,
+            rate_limiter=self.rate_limiter,
+            rate_limit_keys=self._rate_limit_keys(),
         )
         data = load_json_safely(response)
         steps_data = data.get("steps") or []
@@ -115,6 +120,10 @@ class Planner(Agent):
             if len(planned_steps) >= self.max_steps:
                 break
         return planned_steps
+
+    def _rate_limit_keys(self) -> List[str]:
+        provider_key = getattr(self.provider, "provider_name", "provider")
+        return [f"provider:{provider_key}"]
 
     def _fallback_plan(self, task: Task, citations: List[str]) -> List[PlanStep]:
         counter = itertools.count(1)

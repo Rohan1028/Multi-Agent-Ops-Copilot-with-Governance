@@ -19,6 +19,7 @@ from app.governance.audit import AuditLogger
 from app.governance.costs import CostTracker
 from app.governance.policies import PolicyStore
 from app.metrics.llm_usage import LLMUsageLogger
+from app.llm_rate_limit import RateLimiter
 from app.rag.indexer import CorpusIndexer
 from app.rag.retriever import CorpusRetriever
 from app.schemas.core import ExecutionResult, PlanStep, RunMetrics, Task
@@ -51,6 +52,14 @@ class OpsCopilotRuntime:
         self.retriever = CorpusRetriever(self.settings)
         self.llm_usage = LLMUsageLogger(self.settings)
         self.provider = get_llm_provider(self.settings)
+        self.rate_limiter = RateLimiter()
+        provider_key = getattr(self.provider, 'provider_name', 'provider') if self.provider else 'provider'
+        self.rate_limiter.configure(f'provider:{provider_key}', per_minute=self.settings.LLM_RATE_LIMIT_PER_MIN)
+        for tool in ('github', 'jira'):
+            limit = self.policies.rate_limit(tool)
+            if limit:
+                self.rate_limiter.configure(f'tool:{tool}', per_minute=limit)
+
         self.github = get_github_client(self.audit, self.settings)
         self.jira = get_jira_client(self.audit, self.settings)
         self.planner = Planner(
@@ -59,6 +68,7 @@ class OpsCopilotRuntime:
             self.audit,
             provider=self.provider,
             usage_logger=self.llm_usage,
+            rate_limiter=self.rate_limiter,
         )
         review_cfg = self.policies.review_config
         self.reviewer = Reviewer(
@@ -83,6 +93,7 @@ class OpsCopilotRuntime:
             enforce_citations=governed,
             provider=self.provider,
             usage_logger=self.llm_usage,
+            rate_limiter=self.rate_limiter,
         )
         self.recent_runs: Deque[RunResponse] = deque(maxlen=20)
 

@@ -76,7 +76,16 @@ Set `LLM_PROVIDER` in `.env`:
 - `openai`
 - `azure`
 
-For OpenAI provide `OPENAI_API_KEY`. For Azure set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT`. Missing secrets gracefully fall back to the stub provider.
+For OpenAI set `OPENAI_API_KEY` (optionally `OPENAI_MODEL`, defaults to `gpt-4o-mini`, and `OPENAI_API_BASE` for private endpoints). Azure requires `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (and optional `AZURE_OPENAI_MODEL`). Missing secrets gracefully fall back to the stub provider, so the system keeps running even if the real API is unreachable.
+
+Rate limiting and retries are handled automatically:
+- `LLM_RATE_LIMIT_PER_MIN` caps provider calls per minute (defaults to 60).
+- Tool policies (`runtime/policies.yaml`) supply additional throttles (e.g., GitHub/Jira approvals).
+- When OpenAI/Azure return 429/5xx responses, the runtime will back off, retry, and finally fall back to the stub provider while recording the failure in metrics.
+
+LLM usage metrics (tokens, latency, estimated cost) are logged to SQLite. The FastAPI service exposes:
+- `GET /metrics/llm/summary` – aggregated spend/latency.
+- `GET /metrics/llm/recent?limit=20` – recent invocations with provider/model details.
 
 ## Real GitHub / Jira Integrations
 Populate the corresponding environment variables and the runtime will switch from mocks to real adapters:

@@ -1,5 +1,10 @@
+import json
+import httpx
+
 import pytest
 
+from app.llm import call_llm
+from app.llm_rate_limit import RateLimiter
 from app.main import OpsCopilotRuntime, TaskRequest
 from app.schemas.core import ExecutionResult, PlanStep
 
@@ -101,3 +106,34 @@ def test_reviewer_blocks_based_on_llm(monkeypatch: pytest.MonkeyPatch):
     last_result = response.results[-1]
     assert last_result.success is False
     assert any('REJECT' in err.upper() for err in last_result.errors)
+
+def test_call_llm_retries_and_fallback():
+    class FailingProvider:
+        provider_name = "openai"
+        model = "gpt-4o-mini"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, prompt: str, system: str | None = None, max_tokens: int = 512) -> str:
+            self.calls += 1
+            request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+            response = httpx.Response(429, request=request)
+            raise httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+    provider = FailingProvider()
+    limiter = RateLimiter()
+    limiter.configure("provider:openai", per_minute=100)
+
+    result = call_llm(
+        provider,
+        system="Planner system",
+        prompt='[LLM_PLAN_REQUEST] {"task": "demo"}',
+        max_tokens=64,
+        rate_limiter=limiter,
+        max_retries=1,
+    )
+
+    data = json.loads(result)
+    assert isinstance(data.get("steps"), list)
+    assert provider.calls == 2

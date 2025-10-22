@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.agents.base import Agent
 from app.governance.policies import PolicyStore
 from app.llm import call_llm
+from app.llm_rate_limit import RateLimiter
 from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.defenses import detect_prompt_injection, sanitize
 from app.rag.retriever import CorpusRetriever
@@ -28,6 +29,7 @@ class Reviewer(Agent):
         max_replans: int | None = None,
         provider: Optional[BaseProvider] = None,
         usage_logger: Optional[LLMUsageLogger] = None,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         super().__init__("Reviewer", audit_logger)
         self.policies = policies
@@ -46,6 +48,7 @@ class Reviewer(Agent):
         self._replan_counts: Dict[str, int] = defaultdict(int)
         self.provider = provider
         self.usage_logger = usage_logger
+        self.rate_limiter = rate_limiter
 
     def act(self, task: Task, step: PlanStep, result: ExecutionResult) -> Tuple[bool, str]:
         if not self.enabled:
@@ -81,6 +84,8 @@ class Reviewer(Agent):
                 prompt=self._build_review_prompt(task, step, result),
                 max_tokens=220,
                 usage_logger=self.usage_logger,
+                rate_limiter=self.rate_limiter,
+                rate_limit_keys=self._rate_limit_keys(),
             )
             verdict = critique.strip().lower()
             if any(token in verdict for token in ["reject", "block", "violation"]):
@@ -107,3 +112,7 @@ class Reviewer(Agent):
             f"Citations: {citations}\n"
             f"Errors: {errors}\n"
         )
+
+    def _rate_limit_keys(self) -> list[str]:
+        provider_key = getattr(self.provider, "provider_name", "provider")
+        return [f"provider:{provider_key}"]

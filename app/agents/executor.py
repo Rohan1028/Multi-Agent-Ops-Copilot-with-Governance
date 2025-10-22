@@ -8,6 +8,7 @@ from app.governance.audit import AuditLogger
 from app.governance.costs import BudgetExceededError, CostTracker
 from app.governance.policies import PolicyStore
 from app.llm import call_llm
+from app.llm_rate_limit import RateLimiter
 from app.metrics.llm_usage import LLMUsageLogger
 from app.rag.defenses import sanitize
 from app.rag.retriever import CorpusRetriever, require_citations
@@ -40,6 +41,7 @@ class Executor(Agent):
         enforce_citations: bool = True,
         provider: Optional[BaseProvider] = None,
         usage_logger: Optional[LLMUsageLogger] = None,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         super().__init__("Executor", audit_logger)
         self.retriever = retriever
@@ -51,6 +53,7 @@ class Executor(Agent):
         self.enforce_citations = enforce_citations
         self.provider = provider
         self.usage_logger = usage_logger
+        self.rate_limiter = rate_limiter
 
     def act(self, task: Task, step: PlanStep) -> ExecutionResult:
         self.audit.log(self.name, "step_received", {"task_id": task.id, "step_id": step.id, "tool": step.tool})
@@ -150,6 +153,8 @@ class Executor(Agent):
                 prompt=prompt,
                 max_tokens=320,
                 usage_logger=self.usage_logger,
+                rate_limiter=self.rate_limiter,
+                rate_limit_keys=self._rate_limit_keys(step.tool),
             )
             return generated or synopsis
         except Exception as exc:  # pragma: no cover - provider failures fall back
@@ -161,3 +166,10 @@ class Executor(Agent):
             return
         if not self.policies.is_tool_allowed("Executor", step.tool):
             raise PermissionError(f"Executor is not allowed to use tool {step.tool}")
+
+    def _rate_limit_keys(self, tool: str) -> List[str]:
+        provider_key = getattr(self.provider, "provider_name", "provider")
+        keys = [f"provider:{provider_key}"]
+        if tool:
+            keys.append(f"tool:{tool}")
+        return keys
