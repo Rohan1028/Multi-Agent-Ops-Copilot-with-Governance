@@ -51,7 +51,7 @@ class OpsCopilotRuntime:
         self.provider = get_llm_provider(self.settings)
         self.github = get_github_client(self.audit, self.settings)
         self.jira = get_jira_client(self.audit, self.settings)
-        self.planner = Planner(self.retriever, self.policies, self.audit)
+        self.planner = Planner(self.retriever, self.policies, self.audit, provider=self.provider)
         review_cfg = self.policies.review_config
         self.reviewer = Reviewer(
             policies=self.policies,
