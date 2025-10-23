@@ -10,13 +10,14 @@ from app.config import Settings
 
 class Provider:
     def __init__(self, settings: Settings) -> None:
-        api_key = os.getenv('OPENAI_API_KEY')
+        api_key = settings.OPENAI_API_KEY or os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise RuntimeError('OPENAI_API_KEY not configured')
         self.settings = settings
         self.api_key = api_key
-        self.api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1').rstrip('/')
-        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+        api_base = settings.OPENAI_API_BASE or os.getenv('OPENAI_API_BASE') or 'https://api.openai.com/v1'
+        self.api_base = api_base.rstrip('/')
+        self.model = (settings.OPENAI_MODEL or os.getenv('OPENAI_MODEL') or 'gpt-4o-mini')
         self.provider_name = 'openai'
         self._client = httpx.Client(base_url=self.api_base, timeout=10.0)
         self._last_usage: Optional[Dict[str, int]] = None
