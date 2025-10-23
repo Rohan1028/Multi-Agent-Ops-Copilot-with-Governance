@@ -191,6 +191,11 @@ fastapi_app.add_middleware(
 fastapi_app.include_router(metrics_router)
 
 
+@fastapi_app.get('/')
+def root() -> Dict[str, str]:
+    return {'status': 'ok'}
+
+
 @fastapi_app.get('/healthz')
 def healthz() -> Dict[str, str]:
     return {'status': 'ok'}

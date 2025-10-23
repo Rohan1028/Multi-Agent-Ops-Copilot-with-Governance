@@ -70,10 +70,25 @@ def governance_summary() -> Dict[str, object]:
         audit = conn.execute(
             "SELECT action, COUNT(1) FROM audit_logs GROUP BY action"
         ).fetchall()
-    approvals_map = {status: count for status, count in approvals}
-    audit_map = {action: count for action, count in audit}
+    approvals_map = {"pending": 0, "approved": 0, "rejected": 0}
+    for status, count in approvals:
+        if status in approvals_map:
+            approvals_map[status] = count
+    audit_map = {
+        "review_passed": 0,
+        "llm_reject": 0,
+        "prompt_injection_block": 0,
+    }
+    for action, count in audit:
+        if action in audit_map:
+            audit_map[action] = count
+    reviewer_series = [
+        {"outcome": name, "count": value}
+        for name, value in audit_map.items()
+    ]
     return {
         "approvals": approvals_map,
         "audit": audit_map,
+        "reviewer_outcomes": reviewer_series,
         "generated_at": datetime.utcnow().isoformat(),
     }
